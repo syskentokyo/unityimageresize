@@ -3,13 +3,18 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using System.Linq;
-using System.Drawing;
-using Graphics = UnityEngine.Graphics;
 
 namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Editor
 {
     public class MainMenuWindow : EditorWindow
     {
+
+        [MenuItem("SyskenTLib/ManualImage/Resize - Max256",priority = 30)]
+        private static void ResizeMax256()
+        {
+            MainRezieProgress(256);
+
+        }
         
         [MenuItem("SyskenTLib/ManualImage/Resize - Max512",priority = 30)]
         private static void ResizeMax512()
@@ -40,7 +45,7 @@ namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Edito
         }
 
 
-        private static void MainRezieProgress(int maxSize)
+        private static void MainRezieProgress(float maxSize)
         {
             //フォルダ選択
             var selectDirpath = EditorUtility.OpenFolderPanel("Target Root Directory Max "+maxSize,  Application.dataPath, string.Empty);
@@ -54,12 +59,16 @@ namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Edito
 
             fileAllPathList.ForEach(imageFilePath =>
             {
-                using (Image image = Image.FromFile(imageFilePath))
-                {
-                    int srcSizeWidth = image.Width;
-                    int srcSizeHeight = image.Height;
-                    int targetSizeWidth = image.Width;
-                    int targetSizeHeight = image.Height;
+                byte[] newTexutreBytes = File.ReadAllBytes(imageFilePath);
+                Texture2D srcTexture = new Texture2D(10, 10);
+                srcTexture.LoadImage(newTexutreBytes);
+                
+
+                    int srcSizeWidth = srcTexture.width;
+                    int srcSizeHeight = srcTexture.height;
+                    int targetSizeWidth = srcTexture.width;
+                    int targetSizeHeight = srcTexture.height;
+                    
 
                     if (targetSizeWidth < maxSize && targetSizeHeight < maxSize)
                     {
@@ -71,11 +80,12 @@ namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Edito
                     {
                         // 大きな画像
                         //縦長の画像だった場合
-                        targetSizeHeight = maxSize;
-                        targetSizeWidth = srcSizeWidth * (maxSize / srcSizeHeight);
+                        targetSizeHeight = (int)maxSize;
+                        targetSizeWidth = (int)(srcSizeWidth * (maxSize / srcSizeHeight));
 
                         //リサイズと保存
-                        ResizeAndSaveToFile(imageFilePath
+                        ResizeAndSaveToFile(srcTexture
+                            ,imageFilePath
                             , srcSizeWidth
                             , srcSizeHeight
                             , targetSizeWidth
@@ -85,11 +95,12 @@ namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Edito
                     {
                         // 大きな画像
                         //横長の画像だった場合
-                        targetSizeHeight = srcSizeHeight * (maxSize / srcSizeWidth);
-                        targetSizeWidth = maxSize;
+                        targetSizeHeight = (int)(srcSizeHeight * (maxSize / srcSizeWidth));
+                        targetSizeWidth = (int)(maxSize);
 
                         //リサイズと保存
-                        ResizeAndSaveToFile(imageFilePath
+                        ResizeAndSaveToFile(srcTexture
+                            ,imageFilePath
                             , srcSizeWidth
                             , srcSizeHeight
                             , targetSizeWidth
@@ -98,25 +109,29 @@ namespace SyskenTLib.ManualImageResize.Editor.SyskenTLib.ManualImageResize.Edito
                     }
                     
                     
-                }
+                
             });
             
         }
         
         
-        private static Texture2D ResizeTexture(Texture2D srcTexture, int newWidth, int newHeight) {
-            Texture2D newTexture = new Texture2D(newWidth, newHeight);
+        private static Texture2D ResizeTexture(Texture2D srcTexture, int newWidth, int newHeight)
+        {
+
+            Texture2D newTexture = new Texture2D(newWidth,newHeight);
+            
+            //GPU側の処理
             Graphics.ConvertTexture(srcTexture, newTexture);
+            
+            //GPUからCPUへコピー
+            newTexture.ReadPixels(new Rect(Vector2.zero,new Vector2(newTexture.width,newTexture.height)),0,0);
             return newTexture;
         }
 
-        private static void ResizeAndSaveToFile(string filePath,int srcWidth, int srcHeight, int newWidth, int newHeight)
+        private static void ResizeAndSaveToFile(Texture2D srcTexture,string filePath,int srcWidth, int srcHeight, int newWidth, int newHeight)
         {
-            byte[] newTexutreBytes = File.ReadAllBytes(filePath);
-            Texture2D texture = new Texture2D(srcWidth, srcHeight);
-            texture.LoadImage(newTexutreBytes);
 
-            Texture2D newTexture = ResizeTexture(texture, newWidth, newHeight);
+            Texture2D newTexture = ResizeTexture(srcTexture, newWidth, newHeight);
 
             if (Path.GetExtension(filePath) == ".jpg")
             {
